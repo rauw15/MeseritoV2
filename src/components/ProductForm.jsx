@@ -24,6 +24,33 @@ const ProductForm = ({ newProduct, setNewProduct, handleProductSubmit }) => {
           marginBottom: '0.5rem',
           fontWeight: '500'
         }}>
+          ID del producto (opcional - se generará automáticamente)
+        </label>
+        <input
+          type="number"
+          value={newProduct.id}
+          onChange={e => setNewProduct({ ...newProduct, id: e.target.value })}
+          placeholder="Dejar vacío para generar automáticamente"
+          style={{
+            width: '100%',
+            padding: '0.8rem',
+            border: '2px solid #e1e5e9',
+            borderRadius: '8px',
+            fontSize: '1rem',
+            transition: 'border-color 0.3s ease',
+            boxSizing: 'border-box'
+          }}
+          onFocus={e => e.target.style.borderColor = '#1e88e5'}
+          onBlur={e => e.target.style.borderColor = '#e1e5e9'}
+        />
+      </div>
+      <div>
+        <label style={{
+          display: 'block',
+          color: '#1565c0',
+          marginBottom: '0.5rem',
+          fontWeight: '500'
+        }}>
           Nombre del producto
         </label>
         <input

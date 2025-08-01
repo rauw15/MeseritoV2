@@ -1,99 +1,54 @@
 import React from 'react';
-import { ShoppingCart, Plus, List, Settings, Package, BarChart3, FileText, TrendingUp } from 'lucide-react';
+import { ShoppingCart, Plus, Filter, Edit, Check, Clock, Truck, Search, Users, TrendingUp, AlertTriangle, User, Shield, LogOut, LogIn } from 'lucide-react';
 
-const Header = ({ currentView, setCurrentView, cart }) => {
-  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-
+const Header = ({ currentView, setCurrentView, cart, userRole, toggleUserRole, onShowLogin, onLogout, isAuthenticated, currentUser }) => {
   const navItems = [
-    { 
-      id: 'menu', 
-      label: 'Crear Pedidos', 
-      icon: ShoppingCart, 
-      description: 'Gestión de pedidos y menú'
-    },
-    { 
-      id: 'orders', 
-      label: 'Gestión de Pedidos', 
-      icon: List, 
-      description: 'Monitor y control de pedidos'
-    },
-    { 
-      id: 'admin', 
-      label: 'Agregar Productos', 
-      icon: Plus, 
-      description: 'Añadir al menú'
-    },
-    { 
-      id: 'inventory', 
-      label: 'Inventario', 
-      icon: Package, 
-      description: 'Gestión de stock'
-    },
-    { 
-      id: 'robot', 
-      label: 'Control Robot', 
-      icon: Settings, 
-      description: 'Asistencia automatizada'
-    }
+    { id: 'menu', label: 'Crear Pedidos', icon: ShoppingCart, description: 'Gestión de pedidos y menú' },
+    { id: 'orders', label: 'Pedidos', icon: Clock, description: 'Gestión de pedidos' },
+    { id: 'admin', label: 'Agregar Producto', icon: Plus, description: 'Agregar productos al menú' },
+    { id: 'inventory', label: 'Inventario', icon: Filter, description: 'Gestión de inventario' },
+    { id: 'robot', label: 'Control Robot', icon: Truck, description: 'Control del robot mesero' }
   ];
 
   return (
     <header style={{
-      background: 'linear-gradient(135deg, var(--primary-600) 0%, var(--primary-800) 50%, var(--accent-600) 100%)',
-      boxShadow: 'var(--shadow-xl)',
-      borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+      background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+      color: 'white',
+      padding: 'var(--space-6)',
+      boxShadow: 'var(--shadow-lg)',
       position: 'sticky',
       top: 0,
-      zIndex: 'var(--z-header)',
-      backdropFilter: 'blur(20px)'
+      zIndex: 100
     }}>
       <div style={{
         maxWidth: '1400px',
         margin: '0 auto',
-        padding: 'var(--space-4) var(--space-6)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 'var(--space-6)'
+        flexWrap: 'wrap',
+        gap: 'var(--space-4)'
       }}>
-        {/* Logo y título */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--space-4)'
-        }}>
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.15)',
-            padding: 'var(--space-3)',
-            borderRadius: 'var(--radius-xl)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.2)'
+        <div>
+          <h1 style={{
+            margin: 0,
+            fontSize: 'var(--text-2xl)',
+            fontWeight: 'var(--font-bold)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-3)'
           }}>
-            <TrendingUp size={32} color="white" />
-          </div>
-          <div>
-            <h1 style={{
-              color: 'white',
-              margin: 0,
-              fontSize: 'var(--text-2xl)',
-              fontWeight: 'var(--font-extrabold)',
-              letterSpacing: '-0.025em',
-              textShadow: '0 2px 4px rgba(0,0,0,0.2)'
-            }}>
-              MeseritoV2 Admin
-            </h1>
-            <p style={{
-              color: 'rgba(255, 255, 255, 0.8)',
-              margin: 0,
-              fontSize: 'var(--text-sm)',
-              fontWeight: 'var(--font-medium)'
-            }}>
-              Panel de Administración del Restaurante
-            </p>
-          </div>
+            🍽️ MeseritoV2 {userRole === 'admin' ? 'Admin' : 'Usuario'}
+          </h1>
+          <p style={{
+            margin: 'var(--space-1) 0 0 0',
+            opacity: 0.9,
+            fontSize: 'var(--text-sm)'
+          }}>
+            {userRole === 'admin' ? 'Panel de Administración del Restaurante' : 'Sistema de Pedidos del Restaurante'}
+          </p>
         </div>
 
-        {/* Navegación */}
         <nav style={{
           display: 'flex',
           gap: 'var(--space-2)',
@@ -101,148 +56,129 @@ const Header = ({ currentView, setCurrentView, cart }) => {
           alignItems: 'center'
         }}>
           {navItems.map((item) => {
-            const isActive = currentView === item.id;
             const Icon = item.icon;
+            const isActive = currentView === item.id;
             
             return (
               <button
                 key={item.id}
                 onClick={() => setCurrentView(item.id)}
-                className="focus-ring"
                 style={{
-                  background: isActive 
-                    ? 'rgba(255, 255, 255, 0.25)' 
-                    : 'rgba(255, 255, 255, 0.1)',
+                  background: isActive ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
                   color: 'white',
-                  border: isActive 
-                    ? '2px solid rgba(255, 255, 255, 0.4)' 
-                    : '2px solid transparent',
+                  border: '2px solid rgba(255, 255, 255, 0.2)',
                   borderRadius: 'var(--radius-xl)',
                   padding: 'var(--space-3) var(--space-4)',
                   cursor: 'pointer',
+                  transition: 'all var(--transition-normal)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 'var(--space-2)',
                   fontSize: 'var(--text-sm)',
-                  fontWeight: isActive ? 'var(--font-bold)' : 'var(--font-semibold)',
-                  transition: 'all var(--transition-normal)',
-                  backdropFilter: 'blur(10px)',
-                  textShadow: '0 1px 2px rgba(0,0,0,0.2)',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  transform: isActive ? 'scale(1.05)' : 'scale(1)',
-                  boxShadow: isActive 
-                    ? '0 8px 25px rgba(0,0,0,0.15)' 
-                    : '0 4px 15px rgba(0,0,0,0.1)'
+                  fontWeight: 'var(--font-medium)',
+                  whiteSpace: 'nowrap'
                 }}
                 onMouseEnter={e => {
                   if (!isActive) {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-                    e.currentTarget.style.transform = 'scale(1.05) translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.2)';
+                    e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                    e.target.style.transform = 'translateY(-1px)';
                   }
                 }}
                 onMouseLeave={e => {
                   if (!isActive) {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                    e.currentTarget.style.transform = 'scale(1) translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.1)';
+                    e.target.style.background = 'transparent';
+                    e.target.style.transform = 'translateY(0)';
                   }
                 }}
                 title={item.description}
               >
                 <Icon size={18} />
-                <span style={{ 
-                  whiteSpace: 'nowrap',
-                  display: window.innerWidth < 768 ? 'none' : 'block'
-                }}>
-                  {item.label}
-                </span>
-                
-                {/* Badge para carrito activo */}
-                {item.id === 'menu' && cartItemCount > 0 && (
-                  <div style={{
-                    background: 'var(--error-500)',
-                    color: 'white',
-                    borderRadius: 'var(--radius-full)',
-                    padding: 'var(--space-1) var(--space-2)',
-                    fontSize: 'var(--text-xs)',
-                    fontWeight: 'var(--font-extrabold)',
-                    minWidth: '20px',
-                    height: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    position: 'absolute',
-                    top: '-8px',
-                    right: '-8px',
-                    boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)',
-                    animation: cartItemCount > 0 ? 'pulse 2s infinite' : 'none'
-                  }}>
-                    {cartItemCount}
-                  </div>
-                )}
-
-                {/* Efecto hover */}
-                <div style={{
-                  position: 'absolute',
-                  inset: 0,
-                  background: 'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))',
-                  borderRadius: 'var(--radius-xl)',
-                  opacity: isActive ? 1 : 0,
-                  transition: 'opacity var(--transition-fast)',
-                  pointerEvents: 'none'
-                }} />
+                <span>{item.label}</span>
               </button>
             );
           })}
-        </nav>
 
-        {/* Estado del sistema */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--space-3)',
-          color: 'rgba(255, 255, 255, 0.9)',
-          fontSize: 'var(--text-sm)',
-          fontWeight: 'var(--font-medium)'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-2)',
-            padding: 'var(--space-2) var(--space-3)',
-            background: 'rgba(255, 255, 255, 0.1)',
-            borderRadius: 'var(--radius-lg)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.2)'
-          }}>
+          {/* ✅ BOTÓN DE LOGIN/LOGOUT */}
+          {isAuthenticated ? (
             <div style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: 'var(--success-400)',
-              animation: 'pulse 2s infinite'
-            }} />
-            <span>Sistema Activo</span>
-          </div>
-          
-          <div style={{
-            padding: 'var(--space-2) var(--space-3)',
-            background: 'rgba(255, 255, 255, 0.1)',
-            borderRadius: 'var(--radius-lg)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            fontSize: 'var(--text-xs)',
-            fontWeight: 'var(--font-semibold)'
-          }}>
-            {new Date().toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit',
-              hour12: true 
-            })}
-          </div>
-        </div>
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-3)'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+                padding: 'var(--space-2) var(--space-3)',
+                background: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: 'var(--radius-lg)',
+                fontSize: 'var(--text-sm)'
+              }}>
+                {userRole === 'admin' ? <Shield size={16} /> : <User size={16} />}
+                <span>{currentUser?.name || userRole}</span>
+              </div>
+              <button
+                onClick={onLogout}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.9)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 'var(--space-2) var(--space-3)',
+                  cursor: 'pointer',
+                  transition: 'all var(--transition-normal)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-2)',
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 'var(--font-medium)'
+                }}
+                onMouseEnter={e => {
+                  e.target.style.background = 'rgba(239, 68, 68, 1)';
+                  e.target.style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={e => {
+                  e.target.style.background = 'rgba(239, 68, 68, 0.9)';
+                  e.target.style.transform = 'translateY(0)';
+                }}
+                title="Cerrar sesión"
+              >
+                <LogOut size={16} />
+                <span>Cerrar</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onShowLogin}
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-xl)',
+                padding: 'var(--space-3) var(--space-4)',
+                cursor: 'pointer',
+                transition: 'all var(--transition-normal)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 'var(--font-semibold)'
+              }}
+              onMouseEnter={e => {
+                e.target.style.transform = 'translateY(-2px)';
+                e.target.style.boxShadow = 'var(--shadow-lg)';
+              }}
+              onMouseLeave={e => {
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = 'none';
+              }}
+              title="Iniciar sesión"
+            >
+              <LogIn size={18} />
+              <span>Iniciar Sesión</span>
+            </button>
+          )}
+        </nav>
       </div>
     </header>
   );

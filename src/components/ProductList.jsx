@@ -7,8 +7,12 @@ const ProductList = ({ products, addToCart }) => (
     gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
     gap: '1.5rem'
   }}>
-    {products.map(product => (
-      <ProductCard key={product.id} product={product} addToCart={addToCart} />
+    {products.map((product, index) => (
+      <ProductCard 
+        key={product.id || `product-${index}`} 
+        product={product} 
+        addToCart={addToCart} 
+      />
     ))}
   </div>
 );

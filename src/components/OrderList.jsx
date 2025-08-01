@@ -1,18 +1,17 @@
 import React from 'react';
 import OrderCard from './OrderCard';
 
-const OrderList = ({ orders, updateOrderStatus, getStatusColor, getStatusIcon }) => (
+// ✅ Simplificado: Solo necesita las órdenes y la función de actualización.
+const OrderList = ({ orders, updateOrderStatus }) => (
   <div style={{ display: 'grid', gap: '1.5rem' }}>
-    {orders.map(order => (
+    {orders.map((order, index) => (
       <OrderCard
-        key={order.id}
+        key={order.id || `order-${index}`}
         order={order}
         updateOrderStatus={updateOrderStatus}
-        getStatusColor={getStatusColor}
-        getStatusIcon={getStatusIcon}
       />
     ))}
   </div>
 );
 
-export default OrderList; 
+export default OrderList;
