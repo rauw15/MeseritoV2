@@ -1696,3 +1696,11 @@
   .status-change-button.pending:disabled { background: linear-gradient(135deg, var(--warning-500) 0%, var(--warning-600) 100%); border-color: var(--warning-500); }
   .status-change-button.in-preparation:disabled { background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%); border-color: var(--primary-500); }
   .status-change-button.delivered:disabled { background: linear-gradient(135deg, var(--success-500) 0%, var(--success-600) 100%); border-color: var(--success-500); }
+
+
+.product-form .form-group { margin-bottom: 1rem; }
+.product-form .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+.product-form .form-input, .product-form .form-textarea, .product-form .form-select { width: 100%; padding: 0.8rem; border: 1px solid #ccc; border-radius: 4px; }
+.product-form .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.product-form .image-preview { margin-top: 1rem; max-width: 200px; border-radius: 4px; }
+.product-form .submit-button { padding: 0.8rem 1.5rem; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }

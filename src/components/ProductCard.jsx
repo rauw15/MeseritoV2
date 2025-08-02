@@ -124,7 +124,7 @@ const ProductCard = ({ product, addToCart }) => {
 
         {/* Product Image */}
         <img
-          src={product.image}
+          src={product.imageUrl}
           alt={product.name}
           onLoad={() => setImageLoaded(true)}
           style={{

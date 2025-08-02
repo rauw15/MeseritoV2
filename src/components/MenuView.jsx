@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Users, Check, AlertTriangle } from 'lucide-react';
-import { pedidoService } from '../Services/apiServices';
+import { Search, Users, Check, AlertTriangle, ShoppingCart } from 'lucide-react';
+import { pedidoService } from '../Services/apiServices'; // Asegúrate que la ruta es correcta
 import ProductList from './ProductList';
 import CategoryFilter from './CategoryFilter';
 
-// ✅ PASO 1: Aceptar 'currentUser' como prop
+// El componente sigue recibiendo 'currentUser' para mostrar el nombre del mesero,
+// pero usará un ID de admin fijo para crear el pedido.
 const MenuView = ({ 
   products, 
   loadingProducts, 
@@ -13,18 +14,20 @@ const MenuView = ({
   setSelectedCategory,
   categories,
   onRetryLoad,
-  currentUser // <-- Prop clave
+  currentUser 
 }) => {
   const [cart, setCart] = useState([]);
   const [selectedTable, setSelectedTable] = useState('');
   const [menuSearch, setMenuSearch] = useState('');
   const [showOrderModal, setShowOrderModal] = useState(false);
-  // El estado 'waiterName' ya no es necesario, usaremos el nombre del 'currentUser'
   
-  const tables = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+  // Lista de mesas disponibles
+  const tables = Array.from({ length: 12 }, (_, i) => String(i + 1));
 
+  // Asegura que 'products' sea siempre un array para evitar errores
   const safeProducts = Array.isArray(products) ? products : [];
   
+  // Lógica de filtrado de productos por categoría y búsqueda
   const filteredProducts = selectedCategory === 'todos'
     ? safeProducts
     : safeProducts.filter(product => product.category === selectedCategory);
@@ -34,17 +37,19 @@ const MenuView = ({
     product.description?.toLowerCase().includes(menuSearch.toLowerCase())
   );
 
+  // --- Funciones de manejo del carrito ---
   const addToCart = (product) => {
-    const existingItem = cart.find(item => item.id === product.id);
-    if (existingItem) {
-      setCart(cart.map(item =>
-        item.id === product.id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      ));
-    } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
-    }
+    setCart(prevCart => {
+      const existingItem = prevCart.find(item => item.id === product.id);
+      if (existingItem) {
+        return prevCart.map(item =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prevCart, { ...product, quantity: 1 }];
+    });
   };
 
   const removeFromCart = (productId) => {
@@ -63,6 +68,7 @@ const MenuView = ({
     ));
   };
 
+  // Abre el modal para asignar mesa
   const handleCreateOrder = () => {
     if (cart.length === 0) {
       alert('⚠️ Agrega productos al pedido primero');
@@ -71,41 +77,36 @@ const MenuView = ({
     setShowOrderModal(true);
   };
 
-  // ✅ PASO 2: Modificar la función `confirmOrder`
+  // ✅ ==============================================================
+  // ✅ FUNCIÓN CORREGIDA PARA ENVIAR LOS DATOS CORRECTOS
+  // ✅ ==============================================================
   const confirmOrder = async () => {
     if (!selectedTable) {
       alert('⚠️ Selecciona una mesa para el pedido');
       return;
     }
     
-    // Verificación de seguridad: Asegurarse de que el usuario está definido
-    if (!currentUser || !currentUser.id) {
-        alert('❌ Error de autenticación. Por favor, inicia sesión de nuevo.');
-        return;
-    }
+    // ID del administrador fijo, según el requisito del negocio.
+    const ADMIN_USER_ID = 1754022176465;
     
     try {
-      // El backend necesita un array de IDs de productos.
-      // Si el modelo cambiara para necesitar { productId, quantity }, se ajustaría aquí.
-      const productIds = cart.flatMap(item => Array(item.quantity).fill(item.id));
-
-      const pedidoData = {
-        productIds: productIds,
-        status: 'pendiente',
-        table_id: parseInt(selectedTable),
-        // ¡Usar el ID del usuario autenticado!
-        userId: currentUser.id
+      // Preparamos el objeto que espera nuestra función de servicio.
+      // Ya no necesitamos manipular los IDs de los productos aquí.
+      const orderDetails = {
+        cart: cart,                // El carrito completo, con precios y cantidades
+        tableId: selectedTable,    // El ID de la mesa seleccionada
+        userId: ADMIN_USER_ID      // El ID fijo del administrador
       };
       
-      await pedidoService.create(pedidoData);
+      // Llamamos a la función de servicio que se encarga de la lógica pesada
+      await pedidoService.create(orderDetails);
       
+      // Limpiamos el estado después de un pedido exitoso
       setCart([]);
       setSelectedTable('');
       setShowOrderModal(false);
       
       alert(`✅ Pedido creado exitosamente para Mesa ${selectedTable}`);
-      // Opcional: Notificar al padre para que actualice la vista de pedidos si está visible.
-      // if (onOrderCreated) onOrderCreated();
       
     } catch (error) {
       console.error('Error creating order:', error);
@@ -113,12 +114,16 @@ const MenuView = ({
       alert(`❌ Error: ${errorMessage}`);
     }
   };
+  // ✅ ==============================================================
+  // ✅ FIN DE LA CORRECCIÓN
+  // ✅ ==============================================================
 
   const cancelOrder = () => {
     setShowOrderModal(false);
-    setSelectedTable('');
+    // No reseteamos la mesa seleccionada para que el usuario no tenga que volver a elegirla si cancela por error
   };
 
+  // Componente reutilizable para la barra de búsqueda
   const SearchInput = ({ value, onChange, placeholder }) => (
     <div className="search-input-container">
       <Search size={20} className="search-icon" />
@@ -134,6 +139,7 @@ const MenuView = ({
 
   return (
     <div className="animate-fade-in">
+      {/* Mensaje de Error */}
       {error && (
         <div className="error-message">
           <AlertTriangle size={32} color="var(--error-600)" />
@@ -147,11 +153,12 @@ const MenuView = ({
         </div>
       )}
 
+      {/* Cabecera de la sección */}
       <div className="section-header">
         <div>
           <h2 className="section-title">Crear Nuevo Pedido</h2>
           <p className="section-description">
-            Selecciona productos del menú para crear un pedido para cualquier mesa
+            Selecciona productos del menú para crear un pedido para cualquier mesa.
           </p>
         </div>
         <CategoryFilter 
@@ -169,12 +176,13 @@ const MenuView = ({
         />
       </div>
 
+      {/* Lógica de renderizado condicional */}
       {loadingProducts ? (
         <div className="loading-container">
           <div className="loading-spinner"></div>
           <p className="loading-text">🍽️ Cargando productos del menú...</p>
         </div>
-      ) : products.length === 0 ? (
+      ) : products.length === 0 && !error ? (
         <div className="empty-state">
           <div className="empty-state-icon">🍽️</div>
           <h3 className="empty-state-title">No hay productos en el menú</h3>
@@ -186,6 +194,7 @@ const MenuView = ({
         <ProductList products={filteredMenuProducts} addToCart={addToCart} />
       )}
       
+      {/* Carrito Flotante */}
       {cart.length > 0 && (
         <div className="floating-cart">
           <div className="cart-preview">
@@ -204,8 +213,8 @@ const MenuView = ({
           </div>
 
           <button onClick={handleCreateOrder} className="create-order-button focus-ring">
-            <Users size={24} />
-            <span>Asignar Mesa & Crear Pedido</span>
+            <ShoppingCart size={24} />
+            <span>Asignar Mesa y Crear Pedido</span>
             <div className="order-count">
               {cart.reduce((sum, item) => sum + item.quantity, 0)}
             </div>
@@ -213,9 +222,10 @@ const MenuView = ({
         </div>
       )}
 
+      {/* Modal para confirmar el pedido */}
       {showOrderModal && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content animate-slide-up">
             <h3 className="modal-title">🍽️ Asignar Mesa al Pedido</h3>
 
             <div className="order-summary">
@@ -249,14 +259,13 @@ const MenuView = ({
               </select>
             </div>
             
-            {/* ✅ PASO 3: Mostrar el mesero responsable real */}
             <div className="form-group">
               <label className="form-label">Mesero Responsable:</label>
               <input
                 type="text"
-                value={currentUser?.name || 'Cargando...'}
+                value={currentUser?.name || 'Administrador'} // Mostramos el nombre del usuario actual o 'Administrador'
                 className="form-input focus-ring"
-                readOnly // El campo es de solo lectura
+                readOnly 
               />
             </div>
 

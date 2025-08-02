@@ -3,13 +3,62 @@ import axios from 'axios';
 // 🌐 Configuración base de la API - Backend desplegado en Render
 const API_BASE_URL = 'https://meserito-backend-qaw1.onrender.com';
 
+// Datos de fallback para cuando el servidor no esté disponible
+const FALLBACK_DATA = {
+  products: [
+    {
+      id: 1,
+      name: "Hamburguesa Clásica",
+      description: "Hamburguesa con carne, lechuga, tomate y queso",
+      price: 12.99,
+      category: "comida",
+      image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400"
+    },
+    {
+      id: 2,
+      name: "Pizza Margherita",
+      description: "Pizza tradicional con tomate, mozzarella y albahaca",
+      price: 18.50,
+      category: "comida",
+      image: "https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=400"
+    },
+    {
+      id: 3,
+      name: "Coca Cola",
+      description: "Refresco de cola 500ml",
+      price: 3.50,
+      category: "bebidas",
+      image: "https://images.unsplash.com/photo-1629203851122-3726ecdf080e?w=400"
+    },
+    {
+      id: 4,
+      name: "Tiramisú",
+      description: "Postre italiano con café y mascarpone",
+      price: 8.99,
+      category: "postres",
+      image: "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=400"
+    }
+  ],
+  users: [
+    {
+      id: 1,
+      name: "Admin",
+      email: "admin@meserito.com",
+      role: "admin"
+    }
+  ],
+  tables: [
+    { id: 1, status: "disponible" },
+    { id: 2, status: "disponible" },
+    { id: 3, status: "disponible" }
+  ]
+};
+
 // Crear instancia de axios con configuración base
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000, // 15 segundos para Render (puede ser más lento que localhost)
-  headers: {
-    'Content-Type': 'application/json'
-  }
+  timeout: 30000, // 30 segundos es un buen valor para plataformas en la nube
+  // NO establecemos Content-Type aquí por defecto, Axios es inteligente para manejarlo
 });
 
 // Interceptor para agregar token automáticamente si existe
@@ -30,85 +79,48 @@ apiClient.interceptors.request.use(
 // Interceptor para manejar respuestas y errores globalmente
 apiClient.interceptors.response.use(
   (response) => {
-    // Log successful responses in development (Vite usa import.meta.env.DEV)
-    if (import.meta.env.DEV) {
-      // Solo loggear respuestas importantes, no todas
-      const url = response.config.url;
-      if (url && !url.includes('getAll')) { // No loggear las consultas repetitivas
-        console.log('✅ API Success:', {
-          url: response.config.url,
-          method: response.config.method?.toUpperCase(),
-          status: response.status
-        });
-      }
-    }
-    
-    // 🎯 MANEJO ESPECIAL PARA RESPUESTAS DEL BACKEND
-    // El backend envía: { status: "success", data: [...] }
-    // Necesitamos extraer solo el data para mantener compatibilidad
+    // Extraer la propiedad 'data' si la respuesta sigue el formato { status: 'success', data: [...] }
     if (response.data && response.data.status === 'success' && response.data.data !== undefined) {
-      // Reemplazar response.data con solo el array de datos
       response.data = response.data.data;
     }
-    
     return response;
   },
   (error) => {
-    // Solo mostrar errores importantes en producción
     const errorInfo = {
       url: error.config?.url,
       method: error.config?.method?.toUpperCase(),
       status: error.response?.status,
-      message: error.response?.data?.message || error.message
+      message: error.response?.data?.msn || error.response?.data?.message || error.message
     };
-
-    // Siempre loggear errores, pero de forma más limpia
-    if (error.response?.status >= 400) {
-      console.error('❌ API Error:', errorInfo);
+    
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      errorInfo.message = 'El servidor está tardando en responder. Intenta de nuevo en unos segundos.';
     }
+    
+    console.error('❌ API Error:', errorInfo);
 
-    // Manejar errores de autenticación
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      console.warn('🔐 Sesión expirada. Limpiando datos de autenticación...');
-      // Opcional: redireccionar al login (comentado por ahora)
-      // window.location.href = '/login';
+      console.warn('🔐 Sesión expirada. Por favor, inicia sesión de nuevo.');
     }
-
     return Promise.reject(error);
   }
 );
+
 
 // ========================================
 // 🧑‍💼 SERVICIOS DE USUARIOS
 // ========================================
 export const userService = {
-  // Obtener todos los usuarios
   getAll: () => apiClient.get('/users/get'),
-  
-  // Crear nuevo usuario
   create: (userData) => apiClient.post('/users/create', userData),
-  
-  // Obtener usuario por ID
   getById: (id) => apiClient.get(`/users/getById?id=${id}`),
-  
-  // Actualizar usuario
   update: (id, userData) => apiClient.put(`/users/update/${id}`, userData),
-  
-  // Eliminar usuario
   delete: (id) => apiClient.delete(`/users/delete/${id}`),
-  
-  // Iniciar sesión
   login: (credentials) => apiClient.post('/users/login', credentials),
-  
-  // Verificar token (si tienes esta ruta)
   verifyToken: () => apiClient.post('/users/verify'),
-  
-  // Obtener perfil (si tienes esta ruta)
   getProfile: () => apiClient.post('/users/profile'),
-  
-  // Cerrar sesión (limpiar datos locales)
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -120,61 +132,89 @@ export const userService = {
 // 🍽️ SERVICIOS DE PRODUCTOS
 // ========================================
 export const productService = {
-  // Obtener todos los productos
   getAll: () => apiClient.get('/products/getAll'),
-  
-  // Crear nuevo producto (requiere admin)
-  create: (productData) => apiClient.post('/products/create', productData),
-  
-  // Crear producto con imagen (FormData)
-  createWithImage: (formData) => apiClient.post('/products/create', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
-  
-  // Obtener producto por ID
+
+  // ✅✅✅ FUNCIÓN 'create' DEFINITIVAMENTE CORREGIDA ✅✅✅
+  /**
+   * Crea un nuevo producto. 
+   * Acepta tanto un objeto JSON como un FormData.
+   * Axios se encargará de establecer el Content-Type correcto automáticamente.
+   */
+  create: (productData) => {
+    // Simplemente pasamos el productData. 
+    // Si es FormData, Axios pondrá 'multipart/form-data' con el boundary.
+    // Si es un objeto, Axios pondrá 'application/json'.
+    return apiClient.post('/products/create', productData);
+  },
+
   getById: (id) => apiClient.get(`/products/get/${id}`),
-  
-  // Actualizar producto (requiere admin)
   update: (id, productData) => apiClient.put(`/products/update/${id}`, productData),
-  
-  // Eliminar producto (requiere admin)
   delete: (id) => apiClient.delete(`/products/delete/${id}`)
 };
+
 
 // ========================================
 // 🪑 SERVICIOS DE MESAS
 // ========================================
 export const tableService = {
-  // Crear nueva mesa
   create: (tableData) => apiClient.post('/tables/create', tableData),
-  
-  // Obtener todas las mesas
   getAll: () => apiClient.get('/tables/getAll'),
-  
-  // Obtener mesa por ID
   getById: (id) => apiClient.get(`/tables/get/${id}`),
-  
-  // Actualizar mesa
   update: (id, tableData) => apiClient.put(`/tables/update/${id}`, tableData),
-  
-  // Eliminar mesa
   delete: (id) => apiClient.delete(`/tables/delete/${id}`),
-  
-  // Separar cuenta de mesa
   separateBill: (id, billData) => apiClient.post(`/tables/separate-bill/${id}`, billData),
-  
-  // Asignar usuario a mesa
   assignUser: (id, userData) => apiClient.post(`/tables/assign-user/${id}`, userData)
 };
 
+
 // ========================================
-// 📋 SERVICIOS DE PEDIDOS - ¡CON FILTRADO!
+// 📋 SERVICIOS DE PEDIDOS - ¡SOLUCIÓN APLICADA AQUÍ!
 // ========================================
 export const pedidoService = {
-  // Crear nuevo pedido
-  create: (pedidoData) => apiClient.post('/pedidos', pedidoData),
+  /**
+   * Crea un nuevo pedido.
+   * Construye el payload final y lo envía a la API.
+   * @param {object} orderDetails - Objeto con los detalles del pedido.
+   * @param {Array} orderDetails.cart - El array de productos en el carrito. Cada item debe tener { id, name, price, quantity }.
+   * @param {number|string} orderDetails.tableId - El ID de la mesa para el pedido.
+   * @param {number|string} orderDetails.userId - El ID del usuario que crea el pedido.
+   * @returns {Promise} - La promesa de la llamada a la API.
+   */
+  create: (orderDetails) => {
+    const { cart, tableId, userId } = orderDetails;
+
+    // 1. Validar que tenemos los datos necesarios
+    if (!cart || cart.length === 0 || !tableId || !userId) {
+      console.error("Datos insuficientes para crear el pedido.", { cart, tableId, userId });
+      return Promise.reject(new Error('Datos insuficientes para crear el pedido. Se requiere: carrito, ID de mesa y ID de usuario.'));
+    }
+
+    // 2. Transformar los productos del carrito al formato que espera el backend
+    const productosParaBackend = cart.map(item => {
+      if (typeof item.id === 'undefined' || typeof item.price === 'undefined' || typeof item.quantity === 'undefined') {
+        throw new Error(`El producto en el carrito es inválido: ${JSON.stringify(item)}`);
+      }
+      return {
+        product_id: item.id,       // Asegura que se envía el ID del producto
+        quantity: item.quantity,   // La cantidad de este producto
+        unit_price: item.price     // El precio al momento de agregarlo
+      };
+    });
+
+    // 3. Construir el objeto final para la API (el backend calculará el total)
+    const pedidoFinal = {
+      table_id: parseInt(tableId, 10),
+      user_id: parseInt(userId, 10),
+      products: productosParaBackend
+    };
+    
+    console.log("📦 Enviando pedido a la API:", pedidoFinal);
+
+    // 4. Enviar la petición a la API
+    return apiClient.post('/pedidos', pedidoFinal);
+  },
   
-  // Obtener todos los pedidos (con filtros opcionales)
+  // --- El resto de los métodos se mantienen igual ---
   getAll: (filters = {}) => {
     const params = new URLSearchParams();
     if (filters.status) params.append('status', filters.status);
@@ -185,21 +225,12 @@ export const pedidoService = {
     return apiClient.get(`/pedidos${queryString ? `?${queryString}` : ''}`);
   },
   
-  // Obtener pedido por ID
   getById: (id) => apiClient.get(`/pedidos/${id}`),
-  
-  // Actualizar pedido
   update: (id, pedidoData) => apiClient.put(`/pedidos/${id}`, pedidoData),
-  
-  // Eliminar pedido
   delete: (id) => apiClient.delete(`/pedidos/${id}`),
-  
-  // 🎯 Métodos de filtrado específicos para mayor comodidad
   getByStatus: (status) => pedidoService.getAll({ status }),
   getByTable: (table_id) => pedidoService.getAll({ table_id }),
   getByUser: (userId) => pedidoService.getAll({ userId }),
-  
-  // Obtener pedidos con múltiples filtros
   getFiltered: (status, userId, table_id) => pedidoService.getAll({
     ...(status && { status }),
     ...(userId && { userId }),
@@ -208,13 +239,10 @@ export const pedidoService = {
 };
 
 // ========================================
-// 💬 SERVICIOS DE MENSAJES/CHAT (si los tienes)
+// 💬 SERVICIOS DE MENSAJES/CHAT
 // ========================================
 export const messageService = {
-  // Enviar mensaje
   send: (messageData) => apiClient.post('/api/messages/addmsg', messageData),
-  
-  // Obtener mensajes
   get: (chatData) => apiClient.post('/api/messages/getmsg', chatData)
 };
 
@@ -222,7 +250,6 @@ export const messageService = {
 // 🔧 UTILIDADES Y HELPERS
 // ========================================
 export const apiUtils = {
-  // Configurar token manualmente
   setAuthToken: (token) => {
     if (token) {
       localStorage.setItem('token', token);
@@ -230,37 +257,43 @@ export const apiUtils = {
       localStorage.removeItem('token');
     }
   },
-  
-  // Obtener URL base
   getBaseURL: () => API_BASE_URL,
-  
-  // Crear URL completa
   createURL: (endpoint) => `${API_BASE_URL}${endpoint}`,
-  
-  // Limpiar datos de autenticación
   clearAuth: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   },
-  
-  // Verificar si el usuario está autenticado
   isAuthenticated: () => !!localStorage.getItem('token'),
-  
-  // Obtener usuario del localStorage
   getCurrentUser: () => {
     const user = localStorage.getItem('user');
     return user ? JSON.parse(user) : null;
   },
-
-  // Guardar usuario en localStorage
   setCurrentUser: (user) => {
     localStorage.setItem('user', JSON.stringify(user));
   },
-
-  // Test de conectividad
+  
+  // Función de retry con backoff exponencial
+  retryWithBackoff: async (apiCall, maxRetries = 3, baseDelay = 1000) => {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await apiCall();
+      } catch (error) {
+        const isTimeout = error.code === 'ECONNABORTED' || error.message.includes('timeout');
+        
+        if (attempt === maxRetries || !isTimeout) {
+          throw error;
+        }
+        
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.log(`⏰ Intento ${attempt + 1} falló. Reintentando en ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  },
+  
   testConnection: async () => {
     try {
-      const response = await apiClient.get('/users/get');
+      const response = await apiUtils.retryWithBackoff(() => apiClient.get('/users/get'));
       return { success: true, data: response.data };
     } catch (error) {
       return { 
@@ -271,52 +304,12 @@ export const apiUtils = {
   }
 };
 
-// ========================================
-// 🎣 HOOKS PERSONALIZADOS PARA REACT
-// ========================================
-// Nota: Para usar estos hooks, importa React en tu componente:
-// import React, { useState, useEffect, useCallback } from 'react';
-
-export const createUseApi = (React) => (apiFunction, dependencies = [], executeOnMount = true) => {
-  const [data, setData] = React.useState(null);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState(null);
-
-  const execute = React.useCallback(async (...args) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await apiFunction(...args);
-      const result = response.data?.data || response.data;
-      setData(result);
-      return result;
-    } catch (err) {
-      console.error('❌ Hook API Error:', err.response?.data?.message || err.message);
-      setError(err.response?.data?.message || err.message || 'Error desconocido');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [apiFunction]);
-
-  React.useEffect(() => {
-    if (executeOnMount) {
-      execute();
-    }
-  }, dependencies);
-
-  return { data, loading, error, execute, reset: () => setData(null) };
-};
 
 // ========================================
 // 📊 FUNCIONES DE ESTADO Y MONITOREO
 // ========================================
 export const healthService = {
-  // Verificar estado del servidor
   checkHealth: () => apiClient.get('/health').catch(() => ({ data: { status: 'down' } })),
-  
-  // Obtener estadísticas básicas
   getStats: async () => {
     try {
       const [users, products, tables, pedidos] = await Promise.all([
@@ -358,58 +351,3 @@ export default {
   health: healthService,
   utils: apiUtils
 };
-
-// ========================================
-// 💡 EJEMPLOS DE USO:
-// ========================================
-/*
-// 1. Importar servicios individuales:
-import { userService, productService } from './Services/apiServices';
-
-// 2. Usar servicios:
-const login = async (email, password) => {
-  try {
-    const response = await userService.login({ email, password });
-    const { token, user } = response.data;
-    
-    apiUtils.setAuthToken(token);
-    apiUtils.setCurrentUser(user);
-    
-    return { success: true, user };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-};
-
-// 3. Obtener productos:
-const loadProducts = async () => {
-  try {
-    const response = await productService.getAll();
-    return response.data;
-  } catch (error) {
-    console.error('Error loading products:', error);
-    return [];
-  }
-};
-
-// 4. Filtrar pedidos:
-const loadPedidosByStatus = async (status) => {
-  try {
-    const response = await pedidoService.getByStatus(status);
-    return response.data.data;
-  } catch (error) {
-    console.error('Error loading pedidos:', error);
-    return [];
-  }
-};
-
-// 5. Test de conectividad:
-const testAPI = async () => {
-  const result = await apiUtils.testConnection();
-  if (result.success) {
-    console.log('✅ API connected successfully');
-  } else {
-    console.error('❌ API connection failed:', result.error);
-  }
-};
-*/

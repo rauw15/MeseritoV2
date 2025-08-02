@@ -7,7 +7,9 @@ import AdminView from './components/AdminView';
 import OrdersView from './components/OrdersView';
 import InventoryView from './components/InventoryView';
 import RobotView from './components/RobotView';
-import { productService } from './Services/apiServices'; // Removido pedidoService y apiUtils si no se usan aquí
+import ConnectionStatus from './components/ConnectionStatus';
+import ServerStatus from './components/ServerStatus';
+import { productService } from './Services/apiServices';
 import './App.css';
 
 const MeseritoApp = () => {
@@ -46,8 +48,7 @@ const MeseritoApp = () => {
     setCurrentUser(null);
     setUserRole('user');
     setCurrentView('menu');
-    // ✅✅✅ LÍNEA PROBLEMÁTICA ELIMINADA ✅✅✅
-    // setCart([]); // Esta línea causaba el error.
+    // ✅ Se eliminó una línea que podía causar errores (`setCart([])`)
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     console.log('🔐 Usuario desconectado');
@@ -74,34 +75,49 @@ const MeseritoApp = () => {
     }
   }, []);
 
-  useEffect(() => {
-    // Solo cargar productos si el usuario está autenticado
-    if (isAuthenticated) {
-      loadProducts();
-    } else {
-      // Si no está autenticado, limpiar la lista de productos
+  const loadProducts = async () => {
+    if (!isAuthenticated) {
       setProducts([]);
       setLoadingProducts(false);
+      return;
     }
-  }, [isAuthenticated]);
-
-  const loadProducts = async () => {
     try {
       setLoadingProducts(true);
       setError('');
       const response = await productService.getAll();
+      
+      // Verificar si estamos usando datos de fallback
+      if (response.fallback) {
+        setError('⚠️ Modo offline: Mostrando datos de ejemplo. El servidor no está disponible.');
+        console.log('📱 Usando datos de fallback:', response.data.length, 'productos');
+      } else {
+        setError(''); // Limpiar error si la conexión fue exitosa
+      }
+      
       setProducts(response.data || []);
     } catch (error) {
       console.error('❌ Error loading products:', error);
-      setError('Error al cargar productos. Verificando conexión con el servidor...');
+      
+      // Mensaje de error más específico para timeouts
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        setError('El servidor está tardando en responder. Esto es normal en Render. Intenta de nuevo en unos segundos.');
+      } else {
+        setError('Error al cargar productos. Verificando conexión con el servidor...');
+      }
       setProducts([]);
     } finally {
       setLoadingProducts(false);
     }
   };
 
+  useEffect(() => {
+    loadProducts();
+  }, [isAuthenticated]);
+
   return (
     <div className="app-container">
+      <ConnectionStatus onRetry={loadProducts} />
+      <ServerStatus onRetry={loadProducts} />
       <Header 
         currentView={currentView} 
         setCurrentView={setCurrentView} 
@@ -152,7 +168,8 @@ const MeseritoApp = () => {
             {(currentView === 'admin' && (userRole === 'admin' || userRole === 'administrador')) && (
               <AdminView onProductCreated={loadProducts} />
             )}
-
+            
+            {/* ✅ Se pasa la lista de productos a OrdersView, lo cual es crucial */}
             {(currentView === 'orders' && (userRole === 'admin' || userRole === 'administrador')) && (
               <OrdersView products={products} />
             )}
@@ -169,7 +186,7 @@ const MeseritoApp = () => {
               />
             )}
 
-            {(currentView !== 'menu' && (userRole === 'user' || userRole === 'mesero')) && (
+            {(currentView !== 'menu' && !['admin', 'administrador'].includes(userRole)) && (
               <div className="animate-fade-in access-denied">
                 <div className="access-denied-icon">🚫</div>
                 <h2 className="access-denied-title">Acceso Denegado</h2>

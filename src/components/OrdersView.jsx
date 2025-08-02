@@ -1,107 +1,126 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Clock, Edit, Check, AlertTriangle } from 'lucide-react';
+import { Search, AlertTriangle } from 'lucide-react';
 import { pedidoService, userService } from '../Services/apiServices';
 import OrderList from './OrderList';
 
 const OrdersView = ({ products }) => {
   const [orders, setOrders] = useState([]);
   const [deliveredOrders, setDeliveredOrders] = useState([]);
-  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [ordersSearch, setOrdersSearch] = useState('');
   const [users, setUsers] = useState([]);
+  const [ordersSearch, setOrdersSearch] = useState('');
 
-  // 1. Carga la lista de usuarios (meseros) al montar el componente.
-  useEffect(() => {
-    const fetchUsers = async () => {
+  // ✅ Función corregida que usa la estructura correcta del backend
+  const transformPedidoData = (pedido, allProducts, allUsers) => {
+    // El backend ya envía los productos con toda la información necesaria
+    // Solo necesitamos asegurarnos de que la estructura sea consistente
+    const processedProducts = (pedido.products || []).map(product => ({
+      id: product.id || product.product_id,
+      name: product.name || `Producto ${product.id || product.product_id}`,
+      price: product.price || product.unit_price || 0,
+      quantity: product.quantity || 1,
+      unit_price: product.unit_price || product.price || 0
+    }));
+
+    // Calcula el total desde el frontend para asegurar consistencia
+    const total = processedProducts.reduce((sum, product) => {
+      return sum + (product.price * product.quantity);
+    }, 0);
+
+    // Busca el nombre del mesero usando el userId del pedido
+    const waiter = allUsers.find(u => u.id === pedido.user_id);
+    const waiterName = waiter?.name || `Mesero ID: ${pedido.user_id ?? 'N/A'}`;
+
+    // Formatea la fecha correctamente
+    const formatTimestamp = (timestamp) => {
+      if (!timestamp) return 'Fecha no disponible';
+      
       try {
-        const response = await userService.getAll();
-        setUsers(response.data || []); // Asegura que users sea siempre un array
-      } catch (err) {
-        console.error("No se pudo cargar la lista de usuarios:", err);
-        setUsers([]); // En caso de error, establece un array vacío
+        // Si ya viene formateado del backend, usarlo directamente
+        if (typeof timestamp === 'string' && timestamp.includes('/')) {
+          return timestamp;
+        }
+        
+        // Si es una fecha, formatearla
+        const date = new Date(timestamp);
+        return date.toLocaleString('es-ES', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      } catch (error) {
+        return 'Fecha inválida';
       }
     };
-    fetchUsers();
-  }, []);
 
-  // 2. Función clave para transformar los datos crudos del backend
-  // al formato que las tarjetas (OrderCard) necesitan.
-  const transformPedidoData = (pedido, allProducts, allUsers) => {
-    // Agrupa los productos por ID y cuenta sus cantidades
-    const productCounts = (pedido.productIds || []).reduce((acc, id) => {
-      acc[id] = (acc[id] || 0) + 1;
-      return acc;
-    }, {});
-
-    // Crea la lista de productos para la card con su cantidad y detalles
-    const aggregatedProducts = Object.entries(productCounts).map(([productId, quantity]) => {
-      const productDetails = allProducts.find(p => p.id === parseInt(productId));
-      return {
-        id: parseInt(productId),
-        name: productDetails?.name || `Producto #${productId}`,
-        price: productDetails?.price || 0,
-        quantity: quantity,
-      };
-    });
-
-    // Calcula el total a partir de los productos ya agregados
-    const total = aggregatedProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0);
-
-    // Busca el nombre del mesero usando el userId
-    const waiter = allUsers.find(u => u.id === pedido.userId);
-    const waiterName = waiter?.name || `Mesero ID: ${pedido.userId ?? 'N/A'}`;
-
-    // Devuelve un objeto seguro con valores por defecto para evitar errores en la UI
+    // Devuelve un objeto completo y seguro, con valores por defecto
     return {
       id: pedido.id ?? 'N/A',
-      customerEmail: `Mesa ${pedido.table_id ?? '?'}`,
-      products: aggregatedProducts,
+      table_id: pedido.table_id,
+      user_id: pedido.user_id,
+      customerEmail: pedido.customerEmail || `Mesa ${pedido.table_id ?? '?'}`,
+      customerName: pedido.customerName || 'Cliente',
+      products: processedProducts,
       total: total,
       status: pedido.status || 'pendiente',
-      tableNumber: pedido.table_id,
       waiter: waiterName,
-      timestamp: pedido.createdAt 
-        ? new Date(pedido.createdAt).toLocaleString('es-ES', {
-            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-          })
-        : 'Fecha no disponible',
-      userId: pedido.userId,
+      timestamp: formatTimestamp(pedido.timestamp),
+      created_at: pedido.created_at,
+      updated_at: pedido.updated_at
     };
   };
   
-  const loadOrders = async () => {
+  // Función para cargar y procesar todos los pedidos
+  const loadOrdersAndUsers = async () => {
     try {
-      setLoadingOrders(true);
+      setLoading(true);
       setError('');
-      const response = await pedidoService.getAll();
-      const allPedidos = response.data && Array.isArray(response.data) ? response.data : [];
       
-      const transformedPedidos = allPedidos.map(p => transformPedidoData(p, products, users));
+      // Carga usuarios y pedidos en paralelo para mayor eficiencia
+      const [usersResponse, pedidosResponse] = await Promise.all([
+        userService.getAll(),
+        pedidoService.getAll()
+      ]);
+
+      const allUsers = usersResponse.data || [];
+      const allPedidos = pedidosResponse.data && Array.isArray(pedidosResponse.data) ? pedidosResponse.data : [];
       
+      setUsers(allUsers);
+
+      // Transforma cada pedido usando la lista completa de productos y usuarios
+      const transformedPedidos = allPedidos.map(p => transformPedidoData(p, products, allUsers));
+      
+      // Separa los pedidos en activos y entregados
       const activePedidos = transformedPedidos.filter(p => p.status !== 'entregado');
       const deliveredPedidos = transformedPedidos.filter(p => p.status === 'entregado');
       
       setOrders(activePedidos);
       setDeliveredOrders(deliveredPedidos);
+
     } catch (err) {
-      console.error('❌ Error loading orders:', err);
-      setError('No se pudieron cargar los pedidos. Por favor, intenta de nuevo.');
+      console.error('❌ Error loading orders or users:', err);
+      setError('No se pudieron cargar los datos. Por favor, intenta de nuevo.');
     } finally {
-      setLoadingOrders(false);
+      setLoading(false);
     }
   };
 
-  // 3. Efecto principal que carga los pedidos solo cuando los productos y usuarios están listos.
+  // Carga los datos cuando el componente se monta o cuando la lista de productos cambia
   useEffect(() => {
-    if (products.length > 0 && users.length > 0) {
-      loadOrders();
-    } else if (products && products.length === 0 && !loadingOrders) {
-      // Si no hay productos, no hay nada que procesar, detenemos la carga.
-      setLoadingOrders(false);
+    // Solo intenta cargar si la lista de productos ya ha sido cargada desde App.jsx
+    if (products.length > 0) {
+      loadOrdersAndUsers();
+    } else {
+      // Si no hay productos (aún cargando o error), no intentes cargar pedidos
+      setLoading(false);
     }
-  }, [products, users]);
+  }, [products]);
 
+  // Función para actualizar el estado de un pedido
   const updateOrderStatus = async (orderId, newStatus) => {
     if (orderId === 'N/A') {
       alert("❌ No se puede actualizar un pedido con ID inválido.");
@@ -109,7 +128,7 @@ const OrdersView = ({ products }) => {
     }
     try {
       await pedidoService.update(orderId, { status: newStatus });
-      await loadOrders(); // Recarga los datos para reflejar el cambio
+      await loadOrdersAndUsers(); // Recarga y procesa todos los datos para reflejar el cambio
       alert(`✅ Pedido #${orderId} actualizado a: ${newStatus}`);
     } catch (error) {
       console.error('Error updating order status:', error);
@@ -117,44 +136,26 @@ const OrdersView = ({ products }) => {
     }
   };
 
-  // 4. Función de filtrado segura que previene el error de 'length'
+  // Lógica de filtrado de pedidos
   const filterOrders = (ordersList) => {
-    if (!Array.isArray(ordersList)) {
-      return []; // Devuelve un array vacío si la entrada no es un array
-    }
-    if (!ordersSearch) {
-      return ordersList;
-    }
+    if (!Array.isArray(ordersList) || !ordersSearch) return ordersList;
     const search = ordersSearch.toLowerCase();
     return ordersList.filter(order =>
-      (order.customerEmail && order.customerEmail.toLowerCase().includes(search)) ||
-      (order.waiter && order.waiter.toLowerCase().includes(search)) ||
-      (order.products && order.products.some(product => product.name.toLowerCase().includes(search))) ||
-      (order.id && order.id.toString().includes(search))
+      String(order.customerEmail).toLowerCase().includes(search) ||
+      String(order.waiter).toLowerCase().includes(search) ||
+      String(order.id).toLowerCase().includes(search) ||
+      (order.products && order.products.some(p => p.name.toLowerCase().includes(search)))
     );
   };
   
-  const SearchInput = ({ value, onChange, placeholder }) => (
-    <div className="search-input-container">
-      <Search size={20} className="search-icon" />
-      <input
-        type="text"
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        className="search-input focus-ring"
-      />
-    </div>
-  );
-
   const filteredActiveOrders = filterOrders(orders);
   const filteredDeliveredOrders = filterOrders(deliveredOrders);
 
-  if (loadingOrders) {
+  if (loading) {
     return (
       <div className="animate-fade-in loading-container">
         <div className="loading-spinner"></div>
-        <p>Cargando pedidos...</p>
+        <p>Cargando pedidos y datos...</p>
       </div>
     );
   }
@@ -166,36 +167,41 @@ const OrdersView = ({ products }) => {
         <p className="orders-description">
           Administra todos los pedidos del restaurante, sus estados y entregas en tiempo real.
         </p>
-        <SearchInput
-          value={ordersSearch}
-          onChange={e => setOrdersSearch(e.target.value)}
-          placeholder="Buscar por Mesa, Mesero, Producto o ID..."
-        />
+        <div className="search-input-container">
+          <Search size={20} className="search-icon" />
+          <input
+            type="text"
+            value={ordersSearch}
+            onChange={e => setOrdersSearch(e.target.value)}
+            placeholder="Buscar por Mesa, Mesero, Producto o ID..."
+            className="search-input focus-ring"
+          />
+        </div>
       </div>
 
       {error && (
-        <div className="error-container">
+        <div className="error-message">
           <AlertTriangle size={32} color="var(--error-600)" />
-          <h3>Error al Cargar Pedidos</h3>
-          <p>{error}</p>
-          <button onClick={loadOrders} className="retry-button">
+          <div>
+            <h4 className="error-title">Error al Cargar</h4>
+            <p className="error-description">{error}</p>
+          </div>
+          <button onClick={loadOrdersAndUsers} className="retry-button">
             Reintentar
           </button>
         </div>
       )}
 
+      {/* Renderizado de las listas de pedidos */}
       <div className="orders-section">
         <h3 className="section-title">
           Pedidos Activos ({filteredActiveOrders.length})
         </h3>
         {filteredActiveOrders.length > 0 ? (
-          <OrderList
-            orders={filteredActiveOrders}
-            updateOrderStatus={updateOrderStatus}
-          />
+          <OrderList orders={filteredActiveOrders} updateOrderStatus={updateOrderStatus} />
         ) : (
           <div className="empty-state">
-             <div className="empty-icon">🍽️</div>
+             <div className="empty-state-icon">🍽️</div>
              <h3>No hay pedidos activos</h3>
              <p>Los nuevos pedidos aparecerán aquí automáticamente.</p>
           </div>
@@ -207,13 +213,10 @@ const OrdersView = ({ products }) => {
           Pedidos Entregados ({filteredDeliveredOrders.length})
         </h3>
         {filteredDeliveredOrders.length > 0 ? (
-          <OrderList
-            orders={filteredDeliveredOrders}
-            updateOrderStatus={() => {}} // No se puede cambiar estado a los entregados
-          />
+          <OrderList orders={filteredDeliveredOrders} updateOrderStatus={() => {}} />
         ) : (
           <div className="empty-state">
-             <div className="empty-icon">✅</div>
+             <div className="empty-state-icon">✅</div>
              <h3>No hay pedidos entregados</h3>
              <p>Los pedidos completados se mostrarán en esta sección.</p>
           </div>
